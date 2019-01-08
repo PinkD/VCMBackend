@@ -1,4 +1,4 @@
-package VCM
+package server
 
 import (
     "context"
@@ -39,7 +39,9 @@ func (dbTool *DBTool) init(host string) {
         "`balance`      DECIMAL DEFAULT 0," +
         "`address`      TEXT    DEFAULT NULL" +
         ")"
-    db.Exec(createUserTableSQL)
+    _, err = db.Exec(createUserTableSQL)
+    assertNoError(err)
+
     createTransferTableSQL := "CREATE TABLE IF NOT EXISTS `transfer` (" +
         "`uid`          INTEGER," +
         "`from`         TEXT    NOT NULL," +
@@ -49,11 +51,12 @@ func (dbTool *DBTool) init(host string) {
         "`fee`          DECIMAL," +
         "FOREIGN KEY `uid` REFERENCE `user.id`" +
         ")"
-    db.Exec(createTransferTableSQL)
+    _, err = db.Exec(createTransferTableSQL)
+    assertNoError(err)
 
 }
 
-func (dbTool *DBTool) login(username, password string) (*User) {
+func (dbTool *DBTool) login(username, password string) (user *User, status int) {
     seed := username + password + time.Now().String()
     data := sha256.Sum256([]byte(seed))
     var stringBuilder strings.Builder;
@@ -66,7 +69,7 @@ func (dbTool *DBTool) login(username, password string) (*User) {
     rows, err := dbTool.db.Query("SELECT * FROM `user` WHERE `username` == $1", username)
     assertNoError(err)
     if !rows.Next() { //exists
-        return nil
+        return nil, 400
     }
     cols, err := rows.Columns()
     assertNoError(err)
@@ -87,31 +90,55 @@ func (dbTool *DBTool) login(username, password string) (*User) {
         Currency: currency,
         Balance:  balance,
         Address:  address,
-    }
+    }, 200
 }
 
-func (dbTool *DBTool) register(username, password string) string {
+func (dbTool *DBTool) register(username, password string) (user *User, status int) {
     rows, err := dbTool.db.Query("SELECT * FROM `user` WHERE `username` == $1", username)
     assertNoError(err)
-    if rows.Next() { //exists
-        return buildResponse(400, "username already exists", nil)
+    if ! rows.Next() { //not exists
+        return nil, 400
     }
     //TODO: begin first
     _, err = dbTool.db.Exec("INSERT INTO `user` (`username`, `password`) VALUES ($1, $2)}", username, password)
-    assertNoError(err)
-
-    user := dbTool.login(username, password)
-    if user == nil {
-        return buildResponse(500, "register fail", nil)
-    } else {
-        return buildResponse(200, "OK", user)
+    if err == nil {
+        return nil, 500
     }
     //TODO: commit here
+    return dbTool.login(username, password)
 }
 
-func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string, amount, fee float64, timestamp int64, receive bool) string {
-    return ""
+func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string, amount, fee float64, timestamp int64, receive bool) (status int) {
+    rows, err := dbTool.db.Query("SELECT `address` FROM `user` WHERE `uid` = $1 AND `token` = $2", uid, token)
+    assertNoError(err)
+    if ! rows.Next() { //login expire
+        return 401
+    }
+    cols, err := rows.Columns()
+    assertNoError(err)
+    from := cols[0]
+    if from == "" {
+        return 400
+    }
+    _, err = dbTool.db.Exec("INSERT INTO `transfer` (`uid`, `from`, `to`, `timestamp`, `amount`, `fee`, `receive`) VALUES ($1, $2, $3, $4, $5, $6)",
+        uid, from, address, amount, fee, timestamp, receive)
+    if err == nil {
+        return 500
+    } else {
+        return 200
+    }
 }
-func (dbTool *DBTool) changeCurrency(uid int, token, currency string) string {
-    return ""
+func (dbTool *DBTool) changeCurrency(uid int, token, currency string) (status int) {
+    rows, err := dbTool.db.Query("SELECT `currency` FROM `user` WHERE `uid` = $1 AND `token` = $2", uid, token)
+    assertNoError(err)
+    if ! rows.Next() { //login expire
+        return 401
+    }
+    cols, err := rows.Columns()
+    assertNoError(err)
+    currentCurrency := cols[0]
+    if currency != currentCurrency {
+        dbTool.db.Exec("UPDATE `user` SET `currency` = $1", currency)
+    }
+    return 200
 }
