@@ -3,36 +3,14 @@ package server
 import (
     "encoding/json"
     "fmt"
-    "net/http"
     "io/ioutil"
+    "net/http"
 )
 
 type Response struct {
     Status int         `json:"status"`
     Msg    string      `json:"msg"`
     Data   interface{} `json:"data"`
-}
-
-type User struct {
-    Uid      int     `json:"uid"`
-    Token    string  `json:"token"`
-    Currency string  `json:"currency"`
-    Balance  float64 `json:"balance"`
-    Address  string  `json:"address"`
-}
-
-type TransferRecord struct {
-    From      string  `json:"from"`
-    To        string  `json:"to"`
-    Amount    float64 `json:"amount"`
-    Fee       float64 `json:"fee"`
-    Timestamp int64   `json:"timestamp"`
-}
-
-type ExchangeRateResponse struct {
-    From string  `json:"asset_id_base"`
-    To   string  `json:"asset_id_quote"`
-    Rate float64 `json:"rate"`
 }
 
 type Server struct {
@@ -55,23 +33,29 @@ func (server *Server) Init() {
 
 func (server *Server) initResponse() {
     server.response = make(map[string]map[int]string)
+    server.response["register"] = make(map[int]string)
     server.response["register"][200] = "OK"
     server.response["register"][400] = "username already exists"
     server.response["register"][500] = "register fail"
 
+    server.response["login"] = make(map[int]string)
     server.response["login"][200] = "OK"
     server.response["login"][400] = "no such a user"
+    server.response["login"][401] = "bad username or password"
     server.response["login"][500] = "login fail"
 
+    server.response["exchange"] = make(map[int]string)
     server.response["exchange"][200] = "OK"
     server.response["exchange"][400] = "currency not support"
     server.response["exchange"][500] = "get exchange rate fail"
 
+    server.response["transfer"] = make(map[int]string)
     server.response["transfer"][200] = "OK"
     server.response["transfer"][400] = "set your address first"
     server.response["transfer"][401] = "login expire"
     server.response["transfer"][500] = "add transfer record fail"
 
+    server.response["currency"] = make(map[int]string)
     server.response["currency"][200] = "OK"
     server.response["currency"][400] = "currency not support"
     server.response["currency"][401] = "login expire"
@@ -79,7 +63,16 @@ func (server *Server) initResponse() {
 }
 
 func (server *Server) checkCurrencySupport(currency string) bool {
+    if server.currencyExchangeRate == nil {
+        panic("call Init first")
+    }
     return server.currencyExchangeRate[currency]
+}
+
+type ExchangeRateResponse struct {
+    From string  `json:"asset_id_base"`
+    To   string  `json:"asset_id_quote"`
+    Rate float64 `json:"rate"`
 }
 
 func (server *Server) getExchangeRate(from, to string) float64 {
@@ -91,9 +84,10 @@ func (server *Server) getExchangeRate(from, to string) float64 {
     if err != nil {
         return 0
     }
-    var exchangeRateResponse ExchangeRateResponse
-    err = json.Unmarshal(data, exchangeRateResponse)
+    exchangeRateResponse := ExchangeRateResponse{}
+    err = json.Unmarshal(data, &exchangeRateResponse)
     if err != nil {
+        panic(err)
         return 0
     }
     return exchangeRateResponse.Rate
@@ -119,18 +113,15 @@ func (server *Server) Login(username, password string) string {
     return server.buildResponse(status, server.response["login"][status], user)
 }
 
-func (server *Server) ExchangeRate(currency, to string) string {
-
+func (server *Server) ExchangeRate(from, to string) string {
     status := 200
-    server.checkCurrencySupport(currency)
-    err := fmt.Errorf("")
-    if err != nil {
+    if !server.checkCurrencySupport(from) {
         status = 400
         return server.buildResponse(status, server.response["exchange"][status], nil)
     }
 
-    rate := server.getExchangeRate(currency, to)
-    if err != nil {
+    rate := server.getExchangeRate(from, to)
+    if rate < 0.00001 {
         status = 500
         return server.buildResponse(status, server.response["exchange"][status], nil)
     }
@@ -155,4 +146,9 @@ func (server *Server) ChangeCurrency(uid int, token, currency string) string {
 
     status := server.dbTool.changeCurrency(uid, token, currency)
     return server.buildResponse(status, server.response["currency"][status], nil)
+}
+
+func (server *Server) ListTransfer(uid int, token string) string {
+    data, status := server.dbTool.listTransfer(uid, token)
+    return server.buildResponse(status, server.response["currency"][status], data)
 }
