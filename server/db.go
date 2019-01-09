@@ -1,7 +1,6 @@
 package server
 
 import (
-    "container/list"
     "crypto/sha256"
     "database/sql"
     _ "github.com/go-sql-driver/mysql"
@@ -12,7 +11,7 @@ import (
 )
 
 type DBTool struct {
-    db *sql.DB
+    db sql.DB
 }
 
 func assertNoError(err error) {
@@ -185,7 +184,7 @@ type TransferRecord struct {
     Timestamp int64   `json:"timestamp"`
 }
 
-func (dbTool *DBTool) listTransfer(uid int, token string) (transferRecords *list.List, status int) {
+func (dbTool *DBTool) listTransfer(uid int, token string) (transferRecords []TransferRecord, status int) {
     rows, err := dbTool.db.Query("SELECT * FROM `user` WHERE `id` = ? AND `token` = ?", uid, token)
     defer rows.Close()
     assertNoError(err)
@@ -196,11 +195,10 @@ func (dbTool *DBTool) listTransfer(uid int, token string) (transferRecords *list
     defer rows.Close()
     assertNoError(err)
     transferRecord := TransferRecord{}
-    transferRecords = new(list.List)
     for rows.Next() {
         err = rows.Scan(&transferRecord.From, &transferRecord.To, &transferRecord.Amount, &transferRecord.Fee, &transferRecord.Timestamp)
         assertNoError(err)
-        transferRecords.PushFront(transferRecord)
+        transferRecords = append(transferRecords, transferRecord)
     }
     return transferRecords, 200
 }

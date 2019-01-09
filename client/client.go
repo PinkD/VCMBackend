@@ -128,3 +128,19 @@ func (c Client) AddTransferRecord(uid int, token, currency, address string, amou
     result, _ := c.request(transferRecordRequest, "add_transfer")
     return result
 }
+
+type ListTransferRequest struct {
+    Uid   int    `json:"uid"`
+    Token string `json:"token"`
+}
+
+func (c Client) listTransfer(uid int, token string) ([]byte) {
+    listTransferRequest := ListTransferRequest{
+        Uid:   uid,
+        Token: token,
+    }
+    result, _ := c.request(listTransferRequest, "list_transfer")
+    return result
+}
+
+//TODO: fix post parameters
