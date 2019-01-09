@@ -4,7 +4,6 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
-    "log"
     "net/http"
     "strconv"
 )
@@ -82,8 +81,6 @@ func (server *Server) bindFunc() {
         postForm := request.PostForm
         username := postForm.Get("username")
         password := postForm.Get("password")
-        log.Println(username)
-        log.Println(password)
         if username == "" || password == "" {
             status := 403
             response := server.buildResponse(status, server.response["register"][status], nil)
@@ -131,11 +128,11 @@ func (server *Server) bindFunc() {
             writer.Write([]byte(response))
         }
     })
-    http.HandleFunc("/change_currency", func(writer http.ResponseWriter, request *http.Request) {
+    http.HandleFunc("/change_profile", func(writer http.ResponseWriter, request *http.Request) {
         err := request.ParseForm()
         if err != nil {
             status := 400
-            response := server.buildResponse(status, server.response["change_currency"][status], nil)
+            response := server.buildResponse(status, server.response["change_profile"][status], nil)
             writer.Write([]byte(response))
         }
         postForm := request.PostForm
@@ -145,7 +142,7 @@ func (server *Server) bindFunc() {
         address := postForm.Get("address")
         if err != nil || token == "" || currency == "" {
             status := 403
-            response := server.buildResponse(status, server.response["change_currency"][status], nil)
+            response := server.buildResponse(status, server.response["change_profile"][status], nil)
             writer.Write([]byte(response))
         } else {
             response := server.ChangeProfile(uid, token, currency, address)
@@ -168,9 +165,19 @@ func (server *Server) bindFunc() {
         fee, _ := strconv.ParseFloat(postForm.Get("fee"), 64)
         timestamp, _ := strconv.ParseInt(postForm.Get("timestamp"), 10, 64)
         receive, _ := strconv.ParseBool(postForm.Get("receive"))
-
+        /*
+        the code
+            a := 0.1
+            b := 0.2
+            fmt.Println(a + b == 0.3)
+        result is false
+        but
+            c := 0
+            fmt.Println(c == 0)
+        result is true
+        so the following comparisons are ok
+         */
         if err != nil || token == "" || currency == "" || address == "" || amount == 0 || fee == 0 || timestamp == 0 {
-            //TODO: make sure float zero and zero are equal
             status := 403
             response := server.buildResponse(status, server.response["change_currency"][status], nil)
             writer.Write([]byte(response))
@@ -287,7 +294,13 @@ func (server *Server) ExchangeRate(from, to string) string {
 
 func (server *Server) AddTransferRecord(uid int, token, currency, address string, amount, fee float64, timestamp int64, receive bool) string {
     status := server.dbTool.addTransferRecord(uid, token, currency, address, amount, fee, timestamp, receive)
-    return server.buildResponse(status, server.response["transfer"][status], nil)
+    if status == 200 {
+        data, _ := server.dbTool.listTransfer(uid, token)
+        return server.buildResponse(status, server.response["transfer"][status], data)
+    } else {
+        return server.buildResponse(status, server.response["transfer"][status], nil)
+    }
+
 }
 
 func (server *Server) ChangeProfile(uid int, token, currency, address string) string {
@@ -295,7 +308,7 @@ func (server *Server) ChangeProfile(uid int, token, currency, address string) st
         status := 400
         return server.buildResponse(status, server.response["profile"][status], nil)
     }
-    status := server.dbTool.changeCurrency(uid, token, currency) //TODO: rearrange to `change profile`
+    status := server.dbTool.changeProfile(uid, token, currency, address)
     return server.buildResponse(status, server.response["profile"][status], nil)
 }
 

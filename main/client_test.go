@@ -51,4 +51,29 @@ func TestClientAddTransferRecord(t *testing.T) {
     println(fmt.Sprintf("uid is %d", uid))
     result = c.AddTransferRecord(uid, token, "BTC", "abcdefg", 0.1, 0.001, time.Now().Unix(), true)
     println(string(result))
+
+    println(string(c.ChangeProfile(uid, token, "ETH", "123456789")))
+
+    result = c.AddTransferRecord(uid, token, "ETH", "987654321", 0.1, 0.001, time.Now().Unix(), true)
+    println(string(result))
+    result = c.AddTransferRecord(uid, token, "ETH", "abcdefg", 0.2, 0.002, time.Now().Unix(), true)
+    println(string(result))
+}
+
+func TestClientListTransfer(t *testing.T) {
+    var c client.Client
+    c.Init("127.0.0.1:8080")
+    result := c.Login("PinkD", "Test")
+    var v map[string]interface{}
+    v = make(map[string]interface{})
+    err := json.Unmarshal(result, &v)
+    if err != nil {
+        panic(err)
+    }
+    data := v["data"].(map[string]interface{})
+    uid := int(data["uid"].(float64))
+    token := data["token"].(string)
+    println(fmt.Sprintf("uid is %d", uid))
+    result = c.ListTransfer(uid, token)
+    println(string(result))
 }

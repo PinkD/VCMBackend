@@ -47,7 +47,7 @@ func (dbTool *DBTool) init(host string) {
     assertNoError(err)
     dbTool.db = db
 
-    //TODO: remove
+    //TODO: debug, to be removed
     tx, err := db.Begin()
     assertNoError(err)
     _, err = tx.Exec("DROP TABLE IF EXISTS `transfer`;")
@@ -65,7 +65,7 @@ func (dbTool *DBTool) init(host string) {
         "`password`     TEXT(16)        NOT NULL," +
         "`token`        CHAR(64)        DEFAULT NULL," +
         "`currency`     VARCHAR(5)      DEFAULT 'BTC'," +
-        "`balance`      DECIMAL         DEFAULT 0," +
+        "`balance`      DOUBLE          DEFAULT 0," +
         "`address`      VARCHAR(128)    DEFAULT ''" +
         ")"
     _, err = tx.Exec(createUserTableSQL)
@@ -76,8 +76,8 @@ func (dbTool *DBTool) init(host string) {
         "`from`         TEXT    NOT NULL," +
         "`to`           TEXT    NOT NULL," +
         "`timestamp`    TIMESTAMP," +
-        "`amount`       DECIMAL," +
-        "`fee`          DECIMAL," +
+        "`amount`       DOUBLE," +
+        "`fee`          DOUBLE," +
         "FOREIGN KEY (`uid`) REFERENCES `user` (`id`)" +
         ")"
     _, err = tx.Exec(createTransferTableSQL)
@@ -149,11 +149,11 @@ func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string
     }
     tx, err := dbTool.db.Begin()
     if receive {
-        _, err = tx.Exec("INSERT INTO `transfer` (`uid`, `from`, `to`, `timestamp`, `amount`, `fee`) VALUES (?, ?, ?, ?, ?, ?)",
-            uid, address, userAddress, amount, fee, timestamp, receive)
+        _, err = tx.Exec("INSERT INTO `transfer` (`uid`, `from`, `to`, `amount`, `fee`, `timestamp`) VALUES (?, ?, ?, ?, ?, TIMESTAMP(?))",
+            uid, address, userAddress, amount, fee, timestamp)
     } else {
-        _, err = tx.Exec("INSERT INTO `transfer` (`uid`, `from`, `to`, `timestamp`, `amount`, `fee`) VALUES (?, ?, ?, ?, ?, ?)",
-            uid, userAddress, address, amount, fee, timestamp, receive)
+        _, err = tx.Exec("INSERT INTO `transfer` (`uid`, `from`, `to`, `amount`, `fee`, `timestamp`) VALUES (?, ?, ?, ?, ?, TIMESTAMP(?))",
+            uid, userAddress, address, amount, fee, timestamp)
     }
     if err != nil || tx.Commit() != nil {
         return 500
@@ -161,21 +161,23 @@ func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string
         return 200
     }
 }
-func (dbTool *DBTool) changeCurrency(uid int, token, currency string) (status int) {
-    rows, err := dbTool.db.Query("SELECT `currency` FROM `user` WHERE `id` = ? AND `token` = ?", uid, token)
+func (dbTool *DBTool) changeProfile(uid int, token, currency, address string) (status int) {
+    rows, err := dbTool.db.Query("SELECT `currency`, `address` FROM `user` WHERE `id` = ? AND `token` = ?", uid, token)
     defer rows.Close()
     assertNoError(err)
     if ! rows.Next() { //login expire
         return 401
     }
-    cols, err := rows.Columns()
+    var currentCurrency string
+    var currentAddress string
+
+    err = rows.Scan(&currentCurrency, &currentAddress)
     assertNoError(err)
-    currentCurrency := cols[0]
-    if currency != currentCurrency {
+    if currency != currentCurrency || address != currentAddress {
         tx, err := dbTool.db.Begin()
         assertNoError(err)
-        _, err = tx.Exec("UPDATE `user` SET `currency` = ? WHERE `id` = ? AND `token` = ?", currency, uid, token)
-        if err != nil && tx.Commit() != nil {
+        _, err = tx.Exec("UPDATE `user` SET `currency` = ?, `address` = ? WHERE `id` = ? AND `token` = ?", currency, address, uid, token)
+        if err != nil || tx.Commit() != nil {
             return 500
         }
     }
@@ -197,7 +199,7 @@ func (dbTool *DBTool) listTransfer(uid int, token string) (transferRecords []Tra
     if ! rows.Next() { //login expire
         return nil, 401
     }
-    rows, err = dbTool.db.Query("SELECT * FROM `transfer` WHERE `uid` = ?", uid)
+    rows, err = dbTool.db.Query("SELECT `from`, `to`, `amount`, `fee`, UNIX_TIMESTAMP(`timestamp`) AS `timestamp` FROM `transfer` WHERE `uid` = ?", uid)
     defer rows.Close()
     assertNoError(err)
     transferRecord := TransferRecord{}

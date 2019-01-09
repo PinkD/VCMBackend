@@ -80,12 +80,13 @@ func (c *Client) ExchangeRate(from, to string) ([]byte) {
     return result
 }
 
-func (c *Client) ChangeCurrency(uid int, token, currency string) ([]byte) {
+func (c *Client) ChangeProfile(uid int, token, currency, address string) ([]byte) {
     data := make(map[string]interface{})
     data["uid"] = uid
     data["token"] = token
     data["currency"] = currency
-    result, _ := c.request(data, "change_currency")
+    data["address"] = address
+    result, _ := c.request(data, "change_profile")
     return result
 }
 
@@ -103,7 +104,7 @@ func (c *Client) AddTransferRecord(uid int, token, currency, address string, amo
     return result
 }
 
-func (c *Client) listTransfer(uid int, token string) ([]byte) {
+func (c *Client) ListTransfer(uid int, token string) ([]byte) {
     data := make(map[string]interface{})
     data["uid"] = uid
     data["token"] = token
