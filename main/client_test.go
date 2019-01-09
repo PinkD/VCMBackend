@@ -52,7 +52,7 @@ func TestClientAddTransferRecord(t *testing.T) {
     result = c.AddTransferRecord(uid, token, "BTC", "abcdefg", 0.1, 0.001, time.Now().Unix(), true)
     println(string(result))
 
-    println(string(c.ChangeProfile(uid, token, "ETH", "123456789")))
+    println(string(c.ChangeProfile(uid, token, "ETH", "123456789", 123)))
 
     result = c.AddTransferRecord(uid, token, "ETH", "987654321", 0.1, 0.001, time.Now().Unix(), true)
     println(string(result))

@@ -80,12 +80,13 @@ func (c *Client) ExchangeRate(from, to string) ([]byte) {
     return result
 }
 
-func (c *Client) ChangeProfile(uid int, token, currency, address string) ([]byte) {
+func (c *Client) ChangeProfile(uid int, token, currency, address string, balance float64) ([]byte) {
     data := make(map[string]interface{})
     data["uid"] = uid
     data["token"] = token
     data["currency"] = currency
     data["address"] = address
+    data["balance"] = balance
     result, _ := c.request(data, "change_profile")
     return result
 }

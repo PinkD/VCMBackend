@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
+    "log"
     "net/http"
     "strconv"
 )
@@ -72,6 +73,8 @@ func (server *Server) initResponse() {
 
 func (server *Server) bindFunc() {
     http.HandleFunc("/register", func(writer http.ResponseWriter, request *http.Request) {
+        println("register")
+        println(request.RemoteAddr)
         err := request.ParseForm()
         if err != nil {
             status := 400
@@ -91,6 +94,8 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/login", func(writer http.ResponseWriter, request *http.Request) {
+        log.Println("login")
+        log.Println(request.RemoteAddr)
         err := request.ParseForm()
         if err != nil {
             status := 400
@@ -110,6 +115,8 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/exchange_rate", func(writer http.ResponseWriter, request *http.Request) {
+        log.Println("exchange_rate")
+        log.Println(request.RemoteAddr)
         err := request.ParseForm()
         if err != nil {
             status := 400
@@ -129,6 +136,8 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/change_profile", func(writer http.ResponseWriter, request *http.Request) {
+        log.Println("change_profile")
+        log.Println(request.RemoteAddr)
         err := request.ParseForm()
         if err != nil {
             status := 400
@@ -140,16 +149,19 @@ func (server *Server) bindFunc() {
         token := postForm.Get("token")
         currency := postForm.Get("currency")
         address := postForm.Get("address")
-        if err != nil || token == "" || currency == "" {
+        balance, err1 := strconv.ParseFloat(postForm.Get("balance"), 64)
+        if err != nil || err1 != nil || token == "" || currency == "" {
             status := 403
             response := server.buildResponse(status, server.response["change_profile"][status], nil)
             writer.Write([]byte(response))
         } else {
-            response := server.ChangeProfile(uid, token, currency, address)
+            response := server.ChangeProfile(uid, token, currency, address, balance)
             writer.Write([]byte(response))
         }
     })
     http.HandleFunc("/add_transfer", func(writer http.ResponseWriter, request *http.Request) {
+        log.Println("add_transfer")
+        log.Println(request.RemoteAddr)
         err := request.ParseForm()
         if err != nil {
             status := 400
@@ -187,6 +199,8 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/list_transfer", func(writer http.ResponseWriter, request *http.Request) {
+        log.Println("list_transfer")
+        log.Println(request.RemoteAddr)
         err := request.ParseForm()
         if err != nil {
             status := 400
@@ -303,12 +317,12 @@ func (server *Server) AddTransferRecord(uid int, token, currency, address string
 
 }
 
-func (server *Server) ChangeProfile(uid int, token, currency, address string) string {
+func (server *Server) ChangeProfile(uid int, token, currency, address string, balance float64) string {
     if ! server.currencyExchangeRate[currency] {
         status := 400
         return server.buildResponse(status, server.response["profile"][status], nil)
     }
-    status := server.dbTool.changeProfile(uid, token, currency, address)
+    status := server.dbTool.changeProfile(uid, token, currency, address, balance)
     return server.buildResponse(status, server.response["profile"][status], nil)
 }
 

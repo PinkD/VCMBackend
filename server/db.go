@@ -161,7 +161,7 @@ func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string
         return 200
     }
 }
-func (dbTool *DBTool) changeProfile(uid int, token, currency, address string) (status int) {
+func (dbTool *DBTool) changeProfile(uid int, token, currency, address string, balance float64) (status int) {
     rows, err := dbTool.db.Query("SELECT `currency`, `address` FROM `user` WHERE `id` = ? AND `token` = ?", uid, token)
     defer rows.Close()
     assertNoError(err)
@@ -176,7 +176,7 @@ func (dbTool *DBTool) changeProfile(uid int, token, currency, address string) (s
     if currency != currentCurrency || address != currentAddress {
         tx, err := dbTool.db.Begin()
         assertNoError(err)
-        _, err = tx.Exec("UPDATE `user` SET `currency` = ?, `address` = ? WHERE `id` = ? AND `token` = ?", currency, address, uid, token)
+        _, err = tx.Exec("UPDATE `user` SET `currency` = ?, `address` = ?, `balance` = ? WHERE `id` = ? AND `token` = ?", currency, address, balance, uid, token)
         if err != nil || tx.Commit() != nil {
             return 500
         }
