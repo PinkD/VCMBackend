@@ -2,43 +2,48 @@ package client
 
 import (
     "bytes"
-    "encoding/json"
+    "fmt"
     "io/ioutil"
+    "log"
     "net/http"
+    "strings"
 )
-
-type Response struct {
-    //TODO: useless
-    Status int         `json:"status"`
-    Msg    string      `json:"msg"`
-    Data   interface{} `json:"data"`
-}
 
 type Client struct {
     httpClient http.Client
     domain     string
+    prefix     string
 }
 
-var ContentTypeJson string = "application/json"
+var ContentTypeJson = "application/x-www-form-urlencoded"
 
-func (c Client) Init(domain string) {
+func (c *Client) Init(domain string) {
     c.domain = domain
+    c.prefix = "http://"
+}
+func (c *Client) InitWithTLS(domain string, cert []byte) {
+    c.domain = domain
+    //TODO: use https
+    c.prefix = "https://"
 }
 
-func (c Client) buildUrl(api string) (string) {
+func (c *Client) buildUrl(api string) (string) {
     if c.domain == "" {
         panic("call Init first")
     }
-    return "https://" + c.domain + "/" + api
+    return c.prefix + c.domain + "/" + api
 }
 
-func (c Client) request(data interface{}, api string) ([]byte, error) {
-    jsonData, err := json.Marshal(data)
-    if err != nil {
-        return nil, err
+func (c *Client) request(data map[string]interface{}, api string) ([]byte, error) {
+    var sb strings.Builder
+    for k, v := range data {
+        sb.WriteString(fmt.Sprintf("%s=%v&", k, v))
     }
+    request := sb.String()
+    request = request[:len(request)-1] //cut the last `&`
+    log.Println(request)
     buffer := bytes.Buffer{}
-    buffer.Write(jsonData)
+    buffer.Write([]byte(request))
     response, err := c.httpClient.Post(c.buildUrl(api), ContentTypeJson, &buffer)
     if err != nil {
         return nil, err
@@ -50,97 +55,58 @@ func (c Client) request(data interface{}, api string) ([]byte, error) {
     return result, nil
 }
 
-type UserRequest struct {
-    Username string `json:"username"`
-    Password string `json:"password"`
-}
-
-func (c Client) loginWrapper(username, password, api string) ([]byte) {
-    user := UserRequest{
-        Username: username,
-        Password: password,
-    }
-    result, _ := c.request(user, api)
+func (c *Client) loginWrapper(username, password, api string) ([]byte) {
+    data := make(map[string]interface{})
+    data["username"] = username
+    data["password"] = password
+    result, _ := c.request(data, api)
     //result must be nil while err not nil
     return result
 }
 
-func (c Client) Register(username, password string) ([]byte) {
+func (c *Client) Register(username, password string) ([]byte) {
     return c.loginWrapper(username, password, "register")
 }
 
-func (c Client) Login(username, password string) ([]byte) {
+func (c *Client) Login(username, password string) ([]byte) {
     return c.loginWrapper(username, password, "login")
 }
 
-type ExchangeRateRequest struct {
-    From string `json:"from"`
-    To   string `json:"to"`
-}
-
-func (c Client) ExchangeRate(from, to string) ([]byte) {
-    exchangeRateRequest := ExchangeRateRequest{
-        From: from,
-        To:   to,
-    }
-    result, _ := c.request(exchangeRateRequest, "exchange_rate")
+func (c *Client) ExchangeRate(from, to string) ([]byte) {
+    data := make(map[string]interface{})
+    data["from"] = from
+    data["to"] = to
+    result, _ := c.request(data, "exchange_rate")
     return result
 }
 
-type ChangeCurrencyRequest struct {
-    Uid      int    `json:"uid"`
-    Token    string `json:"token"`
-    Currency string `json:"currency"`
-}
-
-func (c Client) ChangeCurrency(uid int, token, currency string) ([]byte) {
-    changeCurrencyRequest := ChangeCurrencyRequest{
-        Uid:      uid,
-        Token:    token,
-        Currency: currency,
-    }
-    result, _ := c.request(changeCurrencyRequest, "change_currency")
+func (c *Client) ChangeCurrency(uid int, token, currency string) ([]byte) {
+    data := make(map[string]interface{})
+    data["uid"] = uid
+    data["token"] = token
+    data["currency"] = currency
+    result, _ := c.request(data, "change_currency")
     return result
 }
 
-type TransferRecordRequest struct {
-    Uid       int     `json:"uid"`
-    Token     string  `json:"token"`
-    Currency  string  `json:"currency"`
-    Address   string  `json:"address"`
-    Amount    float64 `json:"amount"`
-    Fee       float64 `json:"fee"`
-    Timestamp int64   `json:"timestamp"`
-    Receive   bool    `json:"receive"`
-}
-
-func (c Client) AddTransferRecord(uid int, token, currency, address string, amount, fee float64, timestamp int64, receive bool) ([]byte) {
-    transferRecordRequest := TransferRecordRequest{
-        Uid:       uid,
-        Token:     token,
-        Currency:  currency,
-        Address:   address,
-        Amount:    amount,
-        Fee:       fee,
-        Timestamp: timestamp,
-        Receive:   receive,
-    }
-    result, _ := c.request(transferRecordRequest, "add_transfer")
+func (c *Client) AddTransferRecord(uid int, token, currency, address string, amount, fee float64, timestamp int64, receive bool) ([]byte) {
+    data := make(map[string]interface{})
+    data["uid"] = uid
+    data["token"] = token
+    data["currency"] = currency
+    data["address"] = address
+    data["amount"] = amount
+    data["fee"] = fee
+    data["timestamp"] = timestamp
+    data["receive"] = receive
+    result, _ := c.request(data, "add_transfer")
     return result
 }
 
-type ListTransferRequest struct {
-    Uid   int    `json:"uid"`
-    Token string `json:"token"`
-}
-
-func (c Client) listTransfer(uid int, token string) ([]byte) {
-    listTransferRequest := ListTransferRequest{
-        Uid:   uid,
-        Token: token,
-    }
-    result, _ := c.request(listTransferRequest, "list_transfer")
+func (c *Client) listTransfer(uid int, token string) ([]byte) {
+    data := make(map[string]interface{})
+    data["uid"] = uid
+    data["token"] = token
+    result, _ := c.request(data, "list_transfer")
     return result
 }
-
-//TODO: fix post parameters

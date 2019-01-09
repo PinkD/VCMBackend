@@ -4,6 +4,7 @@ import (
     "encoding/json"
     "fmt"
     "io/ioutil"
+    "log"
     "net/http"
     "strconv"
 )
@@ -23,6 +24,7 @@ type Server struct {
 }
 
 func (server *Server) Init() {
+    server.dbTool.Init("tcp(10.33.4.33)")
     server.initResponse()
     server.apiKey = "6F909B2C-91D6-4610-8CF6-5E7513DE254C"
     server.exchangeRateUrl = "https://rest.coinapi.io/v1/exchangerate/%s/%s?apikey=%s"
@@ -61,20 +63,27 @@ func (server *Server) initResponse() {
     server.response["transfer"][403] = "params empty or not enough"
     server.response["transfer"][500] = "add transfer record fail"
 
-    server.response["currency"] = make(map[int]string)
-    server.response["currency"][200] = "OK"
-    server.response["currency"][400] = "currency not support"
-    server.response["currency"][403] = "params empty or not enough"
-    server.response["currency"][401] = "login expire"
-    server.response["currency"][500] = "change currency fail"
+    server.response["profile"] = make(map[int]string)
+    server.response["profile"][200] = "OK"
+    server.response["profile"][400] = "currency not support"
+    server.response["profile"][403] = "params empty or not enough"
+    server.response["profile"][401] = "login expire"
+    server.response["profile"][500] = "change currency fail"
 }
 
 func (server *Server) bindFunc() {
     http.HandleFunc("/register", func(writer http.ResponseWriter, request *http.Request) {
-        request.ParseForm()
+        err := request.ParseForm()
+        if err != nil {
+            status := 400
+            response := server.buildResponse(status, server.response["register"][status], nil)
+            writer.Write([]byte(response))
+        }
         postForm := request.PostForm
         username := postForm.Get("username")
         password := postForm.Get("password")
+        log.Println(username)
+        log.Println(password)
         if username == "" || password == "" {
             status := 403
             response := server.buildResponse(status, server.response["register"][status], nil)
@@ -85,7 +94,12 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/login", func(writer http.ResponseWriter, request *http.Request) {
-        request.ParseForm()
+        err := request.ParseForm()
+        if err != nil {
+            status := 400
+            response := server.buildResponse(status, server.response["login"][status], nil)
+            writer.Write([]byte(response))
+        }
         postForm := request.PostForm
         username := postForm.Get("username")
         password := postForm.Get("password")
@@ -99,7 +113,12 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/exchange_rate", func(writer http.ResponseWriter, request *http.Request) {
-        request.ParseForm()
+        err := request.ParseForm()
+        if err != nil {
+            status := 400
+            response := server.buildResponse(status, server.response["exchange_rate"][status], nil)
+            writer.Write([]byte(response))
+        }
         postForm := request.PostForm
         from := postForm.Get("from")
         to := postForm.Get("to")
@@ -113,22 +132,33 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/change_currency", func(writer http.ResponseWriter, request *http.Request) {
-        request.ParseForm()
+        err := request.ParseForm()
+        if err != nil {
+            status := 400
+            response := server.buildResponse(status, server.response["change_currency"][status], nil)
+            writer.Write([]byte(response))
+        }
         postForm := request.PostForm
         uid, err := strconv.Atoi(postForm.Get("uid"))
         token := postForm.Get("token")
         currency := postForm.Get("currency")
+        address := postForm.Get("address")
         if err != nil || token == "" || currency == "" {
             status := 403
             response := server.buildResponse(status, server.response["change_currency"][status], nil)
             writer.Write([]byte(response))
         } else {
-            response := server.ChangeCurrency(uid, token, currency)
+            response := server.ChangeProfile(uid, token, currency, address)
             writer.Write([]byte(response))
         }
     })
     http.HandleFunc("/add_transfer", func(writer http.ResponseWriter, request *http.Request) {
-        request.ParseForm()
+        err := request.ParseForm()
+        if err != nil {
+            status := 400
+            response := server.buildResponse(status, server.response["add_transfer"][status], nil)
+            writer.Write([]byte(response))
+        }
         postForm := request.PostForm
         uid, err := strconv.ParseInt(postForm.Get("uid"), 10, 0)
         token := postForm.Get("token")
@@ -150,7 +180,12 @@ func (server *Server) bindFunc() {
         }
     })
     http.HandleFunc("/list_transfer", func(writer http.ResponseWriter, request *http.Request) {
-        request.ParseForm()
+        err := request.ParseForm()
+        if err != nil {
+            status := 400
+            response := server.buildResponse(status, server.response["list_transfer"][status], nil)
+            writer.Write([]byte(response))
+        }
         postForm := request.PostForm
         uid, err := strconv.Atoi(postForm.Get("uid"))
         token := postForm.Get("token")
@@ -255,14 +290,13 @@ func (server *Server) AddTransferRecord(uid int, token, currency, address string
     return server.buildResponse(status, server.response["transfer"][status], nil)
 }
 
-func (server *Server) ChangeCurrency(uid int, token, currency string) string {
+func (server *Server) ChangeProfile(uid int, token, currency, address string) string {
     if ! server.currencyExchangeRate[currency] {
         status := 400
-        return server.buildResponse(status, server.response["currency"][status], nil)
+        return server.buildResponse(status, server.response["profile"][status], nil)
     }
-
-    status := server.dbTool.changeCurrency(uid, token, currency)
-    return server.buildResponse(status, server.response["currency"][status], nil)
+    status := server.dbTool.changeCurrency(uid, token, currency) //TODO: rearrange to `change profile`
+    return server.buildResponse(status, server.response["profile"][status], nil)
 }
 
 func (server *Server) ListTransfer(uid int, token string) string {

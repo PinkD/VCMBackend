@@ -11,7 +11,7 @@ import (
 )
 
 type DBTool struct {
-    db sql.DB
+    db *sql.DB
 }
 
 func assertNoError(err error) {
@@ -50,8 +50,11 @@ func (dbTool *DBTool) init(host string) {
     //TODO: remove
     tx, err := db.Begin()
     assertNoError(err)
-    tx.Exec("DROP TABLE IF EXISTS `transfer`;")
-    tx.Exec("DROP TABLE IF EXISTS `user`;")
+    _, err = tx.Exec("DROP TABLE IF EXISTS `transfer`;")
+    assertNoError(err)
+    _, err = tx.Exec("DROP TABLE IF EXISTS `user`;")
+    assertNoError(err)
+
     err = tx.Commit()
     assertNoError(err)
 
@@ -92,10 +95,9 @@ func (dbTool *DBTool) register(username, password string) (user *User, status in
     }
     tx, err := dbTool.db.Begin()
     _, err = tx.Exec("INSERT INTO `user` (`username`, `password`) VALUES (?, ?)", username, password)
-    if err != nil {
+    if err != nil || tx.Commit() != nil {
         return nil, 500
     }
-    tx.Commit()
     return dbTool.login(username, password)
 }
 
@@ -123,10 +125,13 @@ func (dbTool *DBTool) login(username, password string) (user *User, status int) 
         return nil, 401
     }
     tx, err := dbTool.db.Begin()
-    tx.Exec("UPDATE `user` SET `token` = ?", token)
-    tx.Commit()
-    user.Token = token
-    return user, 200
+    _, err = tx.Exec("UPDATE `user` SET `token` = ? WHERE `username` = ? AND `password` = ?", token, username, password)
+    if err != nil || tx.Commit() != nil {
+        return nil, 500
+    } else {
+        user.Token = token
+        return user, 200
+    }
 }
 
 func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string, amount, fee float64, timestamp int64, receive bool) (status int) {
@@ -150,8 +155,7 @@ func (dbTool *DBTool) addTransferRecord(uid int, token, currency, address string
         _, err = tx.Exec("INSERT INTO `transfer` (`uid`, `from`, `to`, `timestamp`, `amount`, `fee`) VALUES (?, ?, ?, ?, ?, ?)",
             uid, userAddress, address, amount, fee, timestamp, receive)
     }
-    tx.Commit()
-    if err == nil {
+    if err != nil || tx.Commit() != nil {
         return 500
     } else {
         return 200
@@ -170,8 +174,10 @@ func (dbTool *DBTool) changeCurrency(uid int, token, currency string) (status in
     if currency != currentCurrency {
         tx, err := dbTool.db.Begin()
         assertNoError(err)
-        tx.Exec("UPDATE `user` SET `currency` = ?", currency)
-        tx.Commit()
+        _, err = tx.Exec("UPDATE `user` SET `currency` = ? WHERE `id` = ? AND `token` = ?", currency, uid, token)
+        if err != nil && tx.Commit() != nil {
+            return 500
+        }
     }
     return 200
 }
